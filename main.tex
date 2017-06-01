@@ -1,0 +1,127 @@
+\documentclass{article}
+\usepackage{amsmath}
+\input{title}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+I spent 10 months at Sinequa, working as a Software Developer Trainee, from \textit{September the 5th, 2016} until \textit{June the 30th 2017}.
+
+During this time, I had the chance to work on different subjects, such as the integration of  dashboards to evaluate and visualize the efficiency of machine learning pipelines. With this work I started to develop strong programming skills in diverse areas :
+
+\begin{itemize}
+
+\item \textbf{programming languages} : I got introduced to \textit{scala}, \textit{C\#}, \textit{typescript}
+\item \textbf{distributed computing} : Using the apache framework \textit{Spark} I discovered the world of Big Data (map/reduce, the hadoop stack, etc...)
+\item \textbf{machine learning} : Although my main attention was not focused on designing machine learning solution, pipelines, etc ... I had the opportunity to develop some strong overview of the world of machine learning, thanks to the advice, lessons of \textit{Vincent Bodin}. I learned for example of the \textbf{Estimator/Transformer/Model} paradigm, had the chance to manipulate documents modeled in the \textit{Vector Space Model}, in to learn about state of the art techniques for text representation, manipulation and analysis (eg. Topics Detection, Entity Recognition, etc..)
+  \item \textbf{recommendation engine} : last but not least I was trusted, under the supervision of \textit{Vincent} to build the architecture of a \textbf{Recommendation Engine}, which integrates with Sinequa. In this article I detail my work on the Recommendation Engine, how I modeled it, how I built the Architecture, what challenged I found, etc ...
+\end{itemize}
+
+This article will start by stating the problem, giving it a formal frame in section~\ref{sec:problem_statement}. This will result in a formal setting defining the \textit{terminology}, but is necessarily very abstract and not very useful in practice. In section~\ref{sec:settings_refinement}, the setting will be precisely bounded, precising for example the \textbf{Data format}, the way the recommendation expects to receive new data to update the model, etc ...
+
+\textbf{TODO $\rightarrow$ The rest of the settings introductions}
+
+\section{Problem Statement}
+\label{sec:problem_statement}
+
+I was given the task, quite broad to build a recommendation engine to integrate with the Sinequa Platform. This was a challenging task, as I was (still am at the time of the writing of this paper) a pretty lousy developer, with little or no idea on what a recommendation engine was, less so on how to build an architecture.
+
+After a few months of brainstorming, intense intellectual masturbation, and a few lines of code written, here is my input on the recommendation engine.
+
+\subsection{The What : What is a Recommendation Engine ?}
+\label{sec:what}
+
+A recommendation engine is a construct \textbf{recommend} to some \textbf{users} some \textbf{items}.
+
+Before we precise what we mean by ``recommend'', ``users'', ``object'' (precise terminology will be given in subsection~\ref{sec:terminology}), let me give some example of when the situation arises :
+\bigskip
+
+$\underbrace{\textbf{AMAZON}}_\text{Recommender}$ recommends to $\underbrace{\textbf{Me}}_\text{User}$ the $\underbrace{\textbf{book}}_\text{Items}$ ``The Art of War''
+
+\bigskip
+
+$\underbrace{\textbf{NETFLIX}}_\text{Recommender}$ assigns to the film $\underbrace{\textbf{Le diable s'habille en prada}}_\text{Item}$ the recommendation score 98\% on $\underbrace{\textbf{My}}_\text{User}$ profile
+
+\medskip
+
+$\underbrace{\textbf{VINCENT}}_\text{Recommender}$ ranks for $\underbrace{\textbf{Me}}_\text{User}$ the top 15  $\underbrace{\textbf{MVA's classes}}_\text{Items}$ 
+
+\newpage
+
+From the examples above, we see that a recommendation ``helps the user to make a decision''.
+Whether it is \textbf{AMAZON}, that helps me buy the book I want to read, \textbf{NETFLIX} that helps me decide if I want to watch a particular movie based on its score, or \textbf{VINCENT} that ranks the classes that he thinks will interest me based on what he thinks my tastes are.
+
+All these tasks, and many more are recommendation tasks. Essentially we can see a recommendation task as a mapping :
+
+$$User \rightarrow \text{top k Item recommended}$$
+$$\text{or}, (User, Item) \rightarrow score \in R$$
+$$\text{or}, (User, items : Item[]) \rightarrow ranked(items) \text{ by ``relevance''}$$
+$$ etc ...$$
+
+The list is not exhaustive, but gives a first model of what the recommendation system can offer.
+Based on this we can build a first set of characteristics to tell if a scenario could be modeled as a recommendation task. And thus benefit from a recommendation solution.
+
+\subsection{The When : When could a recommendation engine could come in handy ?}
+
+As we mentioned in the section~\ref{sec:what}, the recommendation task is often a help to make a decision. Let us model a bit the kind of decision that could benefit from a recommendation.
+
+First of all, a common aspect of all the tasks evoked earlier, a \textbf{User}, to make a accomplish his objective (watch a ``good'' movie, read a ``pleasant'' book, attend ``interesting'' classes, ...) needs to \textbf{Choose} among a \underline{\textbf{Set}} of \textbf{Items} (movies in the Netflix Library, books retailed by Amazon, classes available for the master).
+
+Typically these \textbf{Sets} can be way to large for the user to explore all of them, in a feasible time. Thus he must either forfeit the capacity to have access to the ``best'' items, or lose a lot of time finding it.
+
+That is where recommendation engine come in : they simplify the search items, presenting a subset of the available Items. For the recommendation engine to be any good, the items that are presented to the user must be interesting to him, better at least that what he could hope to find on his own within a reasonable time. 
+
+This really means that the recommendation engine has some \textbf{Insight} on what makes an item good for a given user. In the section~\ref{sec:how} we describe how the insight is typically constructed can be generated from the user interaction with the recommendation system. 
+
+
+\subsection{The How : How does a Recommendation Engine recommends stuff ?}
+\label{sec:how}
+
+How does one recommend a movie to a friend ? Multiple scenarios are possible. A first one could be : ``I really like this movie, we have similar tastes, thus you should like this movie''.
+Another one could be  ``We discussed a lot about movies, based on our discussions, I see that you like action movies. Although I dislike them, it is safe to say that the last Jason Statham would be please you very much''.
+
+A few things are worth mentioning here:
+
+\begin{itemize}
+
+\item \textbf{First}, we see that the recommendation in both cases is based on the \textbf{History} of interaction between the \textbf{Recommendation Engine} (the friend who recommends) and the the \textbf{User}.
+
+
+\item \textbf{Second}, although the same data is collected through interactions (which movies the \textbf{User} likes, in the example above), different models based on different assumptions can be built leading to different recommendation.
+
+
+\item \textbf{Third}, dealing with recommendation, having the explanation on why a particular \textbf{Item} is recommended generally holds sometimes as much meaning than the result itself.
+The user can for example refute the fact that he likes \textbf{Action Movies}, and set the record straight with his friend. Or at the opposite discover some side of himself he ignored, which will make him make better choices in the future.
+
+\end{itemize}
+
+
+To try and separate the recommendation into separate components, we have the following :
+
+
+\textbf{TODO : Insert image in here} \\
+
+\textbf{TODO : the structure of the history table}
+
+Section~\ref{sec:state_of_the_art} describes in more theoretical and formal terms how the Insight is built from the data generated by the recommendation system.
+
+% \subsection{The How Much : What does it cost to make a Recommendation Engine ?}
+
+\subsection{Terminology}
+\label{sec:terminology}
+
+\section{Settings Refinement}
+\label{sec:settings_refinement}
+
+\section{Recommendation Engine in the Literature}
+\label{sec:state_of_the_art}
+
+\section{Overall Logical Parts}
+\section{Overall Architecture}
+\section{Interfaces of the Sub-Systems}
+\section{Scenarios}
+\section{Implementation Analysis}
+\section{Benchmark}
+
+\end{document}
